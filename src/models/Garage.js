@@ -1,73 +1,59 @@
-// models/Garage.js
 const mongoose = require('mongoose');
 
 const garageSchema = new mongoose.Schema({
     name: {
         type: String,
-        required: [true, 'Please add garage name'],
+        required: [true, 'Garage name is required'],
         trim: true
+    },
+    address: {
+        type: String,
+        required: true,
+        trim: true
+    },
+    city: {
+        type: String,
+        required: true,
+        trim: true
+    },
+    phone: {
+        type: String,
+        trim: true
+    },
+    email: {
+        type: String,
+        trim: true,
+        lowercase: true
+    },
+    capacity: {
+        type: Number,
+        required: true,
+        default: 20
+    },
+    availableSlots: {
+        type: Number,
+        required: true,
+        default: 20
     },
     owner: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
         required: true
     },
-    licenseNumber: {
+    services: [{
         type: String,
-        required: [true, 'Please add business license number'],
-        unique: true
-    },
-    taxId: {
-        type: String,
-        required: [true, 'Please add tax ID']
-    },
-    address: {
-        street: String,
-        city: String,
-        state: String,
-        zipCode: String,
-        country: String,
-        coordinates: {
-            lat: Number,
-            lng: Number
-        }
-    },
-    contact: {
-        phone: String,
-        email: String,
-        website: String
-    },
-    description: String,
-    images: [String],
-    facilities: [{
-        type: String,
-        enum: ['waiting_area', 'cafe', 'wifi', 'shuttle_service', 'pickup_delivery']
+        enum: ['oil_change', 'brake_repair', 'tire_rotation', 'car_wash', 'engine_diagnosis', 'battery_replacement']
     }],
-    workingHours: {
-        monday: { open: String, close: String },
-        tuesday: { open: String, close: String },
-        wednesday: { open: String, close: String },
-        thursday: { open: String, close: String },
-        friday: { open: String, close: String },
-        saturday: { open: String, close: String },
-        sunday: { open: String, close: String }
+    isDeleted: {
+        type: Boolean,
+        default: false
     },
-    servicesOffered: [{
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Service'
-    }],
-    mechanics: [{
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Mechanic'
-    }],
-    rating: {
-        average: { type: Number, default: 0, min: 0, max: 5 },
-        count: { type: Number, default: 0 }
-    },
-    isVerified: { type: Boolean, default: false },
-    isActive: { type: Boolean, default: true },
-    createdAt: { type: Date, default: Date.now },
-    updatedAt: { type: Date, default: Date.now }
+    deletedAt: {
+        type: Date,
+        default: null
+    }
+}, {
+    timestamps: true
 });
 
 module.exports = mongoose.model('Garage', garageSchema);

@@ -1,27 +1,17 @@
-const express = require("express");
+const express = require('express');
 const router = express.Router();
-const { 
-    createBooking, 
-    getBookings, 
-    getBookingById, 
-    updateBooking, 
-    deleteBooking,
-    getMyBookings,
-    getGarageBookings,
-    updateBookingStatus
-} = require("../controllers/bookingController");
-const protect = require("../middlewares/protect");
+const bookingController = require('../controllers/bookingController');
+const { protect, authorize } = require('../middlewares/auth');
 
-// Protected routes
-router.post("/", protect, createBooking);
-router.get("/my", protect, getMyBookings);
-router.get("/garage/:garageId", protect, getGarageBookings);
-router.get("/:id", protect, getBookingById);
-router.put("/:id", protect, updateBooking);
-router.put("/:id/status", protect, updateBookingStatus);
-router.delete("/:id", protect, deleteBooking);
+// All routes require authentication
+router.use(protect);
 
-// Admin routes (if needed)
-router.get("/", protect, getBookings); // Admin only
+// Car owner routes
+router.post('/', authorize('car_owner'), bookingController.createBooking);
+router.get('/my-bookings', authorize('car_owner'), bookingController.getMyBookings);
+
+// Garage owner routes
+router.get('/garage-bookings', authorize('garage_owner'), bookingController.getGarageBookings);
+router.put('/:id/status', authorize('garage_owner'), bookingController.updateBookingStatus);
 
 module.exports = router;

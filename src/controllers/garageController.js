@@ -1,231 +1,214 @@
-const mongoose = require('mongoose');
+const Garage = require('../models/Garage');
+const User = require('../models/User');
 
-const userSchema = new mongoose.Schema({
-    // Basic Information (All Roles)
-    name: {
-        type: String,
-        required: [true, 'Please add a name'],
-        trim: true
-    },
-    email: {
-        type: String,
-        required: [true, 'Please add an email'],
-        unique: true,
-        lowercase: true,
-        trim: true,
-        match: [
-            /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/,
-            'Please add a valid email'
-        ]
-    },
-    password: {
-        type: String,
-        required: [true, 'Please add a password'],
-        minlength: 6
-    },
-    role: {
-        type: String,
-        enum: ['admin', 'carOwner', 'garageOwner'],
-        default: 'carOwner'
-    },
-    
-    // Contact Information (All Roles)
-    phone: {
-        type: String,
-        required: [true, 'Please add a phone number'],
-        trim: true,
-        match: [
-            /^[0-9\-\+\s\(\)]{10,15}$/,
-            'Please add a valid phone number'
-        ]
-    },
-    
-    // Address Information (All Roles)
-    address: {
-        street: {
-            type: String,
-            required: [true, 'Please add street address']
-        },
-        city: {
-            type: String,
-            required: [true, 'Please add city']
-        },
-        state: {
-            type: String,
-            required: [true, 'Please add state']
-        },
-        zipCode: {
-            type: String,
-            required: [true, 'Please add zip code']
-        },
-        country: {
-            type: String,
-            default: 'USA'
+// @desc    Register a garage (Garage Owner only)
+// @route   POST /api/garages/register
+// @access  Private (Garage Owner)
+exports.registerGarage = async (req, res) => {
+    try {
+        const user = req.user;
+        
+        // Check if user is garage owner
+        if (user.role !== 'garage_owner') {
+            return res.status(403).json({
+                success: false,
+                message: 'Only garage owners can register garages'
+            });
         }
-    },
-    
-    // GARAGE OWNER SPECIFIC FIELDS
-    garageInfo: {
-        garageName: {
-            type: String,
-            required: function() { return this.role === 'garageOwner'; }
-        },
-        businessLicense: {
-            type: String,
-            required: function() { return this.role === 'garageOwner'; }
-        },
-        taxId: {
-            type: String,
-            required: function() { return this.role === 'garageOwner'; }
-        },
-        garageType: {
-            type: String,
-            enum: ['independent', 'chain', 'franchise', 'specialty'],
-            default: 'independent'
-        },
-        yearEstablished: {
-            type: Number,
-            min: 1900,
-            max: new Date().getFullYear()
-        },
-        garageSize: {
-            type: String,
-            enum: ['small', 'medium', 'large']
-        },
-        numberOfEmployees: {
-            type: Number,
-            min: 1
-        },
-        servicesOffered: [{
-            type: String,
-            enum: [
-                'oil_change', 'brake_repair', 'engine_repair', 'transmission_repair',
-                'tire_service', 'battery_service', 'ac_repair', 'electrical_repair',
-                'body_work', 'detailing', 'inspection', 'towing'
-            ]
-        }],
-        certifications: [{
-            type: String,
-            enum: ['ASE', 'NAPA', 'AAA', 'factory_trained']
-        }],
-        workingHours: {
-            monday: { open: String, close: String },
-            tuesday: { open: String, close: String },
-            wednesday: { open: String, close: String },
-            thursday: { open: String, close: String },
-            friday: { open: String, close: String },
-            saturday: { open: String, close: String },
-            sunday: { open: String, close: String }
-        },
-        paymentMethods: [{
-            type: String,
-            enum: ['cash', 'credit_card', 'debit_card', 'mobile_payment', 'insurance']
-        }],
-        insuranceAccepted: [{
-            type: String
-        }],
-        description: {
-            type: String,
-            maxlength: 500
+        
+        // Required fields from document
+        const requiredFields = [
+            'name', 'address', 'city', 'licenseNumber',
+            'capacity', 'availableSlots', 'services'
+        ];
+        
+        const missingFields = requiredFields.filter(field => !req.body[field]);
+        
+        if (missingFields.length > 0) {
+            return res.status(400).json({
+                success: false,
+                message: `Missing required fields: ${missingFields.join(', ')}`
+            });
         }
-    },
-    
-    // CAR OWNER SPECIFIC FIELDS
-    carInfo: {
-        cars: [{
-            make: {
-                type: String,
-                required: [true, 'Please add car make']
-            },
-            model: {
-                type: String,
-                required: [true, 'Please add car model']
-            },
-            year: {
-                type: Number,
-                required: [true, 'Please add car year'],
-                min: 1900,
-                max: new Date().getFullYear() + 1
-            },
-            licensePlate: {
-                type: String,
-                required: [true, 'Please add license plate'],
-                uppercase: true,
-                trim: true
-            },
-            vin: {
-                type: String,
-                uppercase: true,
-                trim: true,
-                match: [/^[A-HJ-NPR-Z0-9]{17}$/, 'Please add a valid VIN']
-            },
-            color: {
-                type: String
-            },
-            fuelType: {
-                type: String,
-                enum: ['gasoline', 'diesel', 'electric', 'hybrid', 'cng', 'lpg']
-            },
-            transmission: {
-                type: String,
-                enum: ['automatic', 'manual', 'cvt', 'semi-automatic']
-            },
-            mileage: {
-                type: Number,
-                min: 0
-            },
-            lastServiceDate: {
-                type: Date
-            },
-            nextServiceDate: {
-                type: Date
-            },
-            insurance: {
-                company: String,
-                policyNumber: String,
-                expiryDate: Date
-            }
-        }],
-        preferredServiceTypes: [{
-            type: String,
-            enum: ['regular_maintenance', 'emergency', 'scheduled', 'diagnostic']
-        }]
-    },
-    
-    // Account Status
-    isVerified: {
-        type: Boolean,
-        default: false
-    },
-    isActive: {
-        type: Boolean,
-        default: true
-    },
-    isDeleted: {
-        type: Boolean,
-        default: false
-    },
-    deletedAt: {
-        type: Date,
-        default: null
-    },
-    verificationToken: String,
-    resetPasswordToken: String,
-    resetPasswordExpire: Date,
-    createdAt: {
-        type: Date,
-        default: Date.now
-    },
-    updatedAt: {
-        type: Date,
-        default: Date.now
+        
+        // Create garage
+        const garageData = {
+            name: req.body.name,
+            address: req.body.address,
+            city: req.body.city,
+            licenseNumber: req.body.licenseNumber,
+            capacity: parseInt(req.body.capacity),
+            availableSlots: parseInt(req.body.availableSlots),
+            services: req.body.services,
+            phone: req.body.phone || '',
+            email: req.body.email || '',
+            description: req.body.description || '',
+            latitude: req.body.latitude || 0,
+            longitude: req.body.longitude || 0,
+            owner: user._id,
+            status: 'pending' // Needs admin approval
+        };
+        
+        // Check for license file (as per document)
+        if (req.body.licenseFile) {
+            garageData.licenseFile = req.body.licenseFile;
+        }
+        
+        const garage = await Garage.create(garageData);
+        
+        res.status(201).json({
+            success: true,
+            message: 'Garage registration submitted for approval',
+            garage
+        });
+        
+    } catch (error) {
+        console.error('Garage registration error:', error);
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
     }
-});
+};
 
-// Update the updatedAt timestamp on save
-userSchema.pre('save', function(next) {
-    this.updatedAt = Date.now();
-    next();
-});
+// @desc    Get all approved garages
+// @route   GET /api/garages
+// @access  Public
+exports.getAllGarages = async (req, res) => {
+    try {
+        const { city, service, page = 1, limit = 10 } = req.query;
+        
+        // Build filter
+        const filter = { 
+            status: 'approved',
+            isDeleted: false 
+        };
+        
+        if (city) filter.city = { $regex: city, $options: 'i' };
+        if (service) filter.services = { $in: [service] };
+        
+        // Execute query with pagination
+        const garages = await Garage.find(filter)
+            .limit(limit * 1)
+            .skip((page - 1) * limit)
+            .populate('owner', 'name email phone')
+            .sort({ createdAt: -1 });
+        
+        // Get total count
+        const total = await Garage.countDocuments(filter);
+        
+        res.status(200).json({
+            success: true,
+            count: garages.length,
+            total,
+            totalPages: Math.ceil(total / limit),
+            currentPage: page,
+            garages
+        });
+        
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+};
 
-module.exports = mongoose.model('User', userSchema);
+// @desc    Get single garage by ID
+// @route   GET /api/garages/:id
+// @access  Public
+exports.getGarageById = async (req, res) => {
+    try {
+        const garage = await Garage.findById(req.params.id)
+            .populate('owner', 'name email phone')
+            .populate('mechanics', 'name specialty rating');
+        
+        if (!garage) {
+            return res.status(404).json({
+                success: false,
+                message: 'Garage not found'
+            });
+        }
+        
+        res.status(200).json({
+            success: true,
+            garage
+        });
+        
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+};
+
+// @desc    Get garages by owner
+// @route   GET /api/garages/owner/my-garages
+// @access  Private (Garage Owner)
+exports.getMyGarages = async (req, res) => {
+    try {
+        const garages = await Garage.find({ 
+            owner: req.user._id,
+            isDeleted: false 
+        });
+        
+        res.status(200).json({
+            success: true,
+            count: garages.length,
+            garages
+        });
+        
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+};
+
+// @desc    Update garage
+// @route   PUT /api/garages/:id
+// @access  Private (Garage Owner or Admin)
+exports.updateGarage = async (req, res) => {
+    try {
+        let garage = await Garage.findById(req.params.id);
+        
+        if (!garage) {
+            return res.status(404).json({
+                success: false,
+                message: 'Garage not found'
+            });
+        }
+        
+        // Check authorization
+        if (req.user.role !== 'admin' && garage.owner.toString() !== req.user._id.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: 'Not authorized to update this garage'
+            });
+        }
+        
+        // Update garage
+        garage = await Garage.findByIdAndUpdate(
+            req.params.id,
+            req.body,
+            {
+                new: true,
+                runValidators: true
+            }
+        );
+        
+        res.status(200).json({
+            success: true,
+            message: 'Garage updated successfully',
+            garage
+        });
+        
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+};

@@ -1,17 +1,39 @@
-const checkRole = (roles) => {
-    return (req, res, next) => {
-        if (!req.user) {
-            return res.status(401).json({ message: "Not authorized" });
-        }
-
-        if (!roles.includes(req.user.role)) {
-            return res.status(403).json({ 
-                message: `Access denied. Required roles: ${roles.join(", ")}` 
-            });
-        }
-
-        next();
-    };
+exports.isAdmin = (req, res, next) => {
+    if (req.user.role !== 'admin') {
+        return res.status(403).json({
+            success: false,
+            message: 'Access denied. Admin only.'
+        });
+    }
+    next();
 };
 
-module.exports = checkRole;
+exports.isGarageOwner = (req, res, next) => {
+    if (req.user.role !== 'garage_owner' && req.user.role !== 'admin') {
+        return res.status(403).json({
+            success: false,
+            message: 'Access denied. Garage owners only.'
+        });
+    }
+    next();
+};
+
+exports.isCustomer = (req, res, next) => {
+    if (req.user.role !== 'customer') {
+        return res.status(403).json({
+            success: false,
+            message: 'Access denied. Customers only.'
+        });
+    }
+    next();
+};
+
+exports.isOwnerOrAdmin = (req, res, next) => {
+    if (req.user.role !== 'admin' && req.user.role !== 'garage_owner') {
+        return res.status(403).json({
+            success: false,
+            message: 'Access denied. Owner or admin only.'
+        });
+    }
+    next();
+};

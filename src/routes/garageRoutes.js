@@ -1,25 +1,18 @@
-const express = require("express");
+const express = require('express');
 const router = express.Router();
-const { 
-    createGarage, 
-    getGarages, 
-    getGarageById, 
-    updateGarage, 
-    deleteGarage,
-    getMyGarages,
-    searchGarages
-} = require("../controllers/garageController");
-const protect = require("../middlewares/protect");
-const checkRole = require("../middlewares/checkRole");
+const garageController = require('../controllers/garageController');
+const { protect, authorize } = require('../middlewares/auth');
+
 // Public routes
-router.get("/", getGarages);
-router.get("/search", searchGarages);
-router.get("/:id", getGarageById);
+router.get('/', garageController.getAllGarages);
+router.get('/:id', garageController.getGarageById);
 
 // Protected routes
-router.post("/", protect, checkRole(["garageOwner", "admin"]), createGarage);
-router.get("/my/garages", protect, checkRole(["garageOwner"]), getMyGarages);
-router.put("/:id", protect, checkRole(["garageOwner", "admin"]), updateGarage);
-router.delete("/:id", protect, checkRole(["garageOwner", "admin"]), deleteGarage);
+router.use(protect);
+
+// Garage owner routes
+router.post('/register', authorize('garage_owner'), garageController.registerGarage);
+router.get('/owner/my-garages', authorize('garage_owner'), garageController.getMyGarages);
+router.put('/:id', authorize('garage_owner', 'admin'), garageController.updateGarage);
 
 module.exports = router;

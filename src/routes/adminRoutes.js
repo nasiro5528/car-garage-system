@@ -1,20 +1,15 @@
 const express = require('express');
 const router = express.Router();
-const authController = require('../controllers/authController');
-const { protect, admin } = require('../middlewares/authMiddleware');
+const adminController = require('../controllers/adminController');
+const { protect, authorize } = require('../middlewares/auth');
 
-// ========== ADMIN ROUTES ==========
+// All admin routes require authentication and admin role
+router.use(protect);
+router.use(authorize('admin'));
 
-// Create admin (one-time, no protection needed)
-router.post('/create-admin', authController.createAdmin);
-
-// Get single user by ID (admin only)
-router.get('/users/:id', protect, admin, authController.getUserById);
-
-// Hard delete user (permanent - admin only)
-router.delete('/users/:id/hard-delete', protect, admin, authController.hardDeleteUser);
-
-// Restore soft-deleted user (admin only)
-router.put('/users/:id/restore', protect, admin, authController.restoreUser);
+router.get('/dashboard', adminController.getDashboardStats);
+router.get('/users', adminController.getAllUsers);
+router.get('/garages', adminController.getAllGaragesAdmin);
+router.put('/garages/:id/approve', adminController.approveGarage);
 
 module.exports = router;
