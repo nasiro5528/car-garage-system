@@ -1,15 +1,20 @@
 const express = require('express');
 const router = express.Router();
-const adminController = require('../controllers/adminController');
-const { protect, authorize } = require('../middlewares/auth');
+const {
+  getPendingGarages,
+  approveGarage,
+  getAllGarages,
+  getDashboardStats
+} = require('../controllers/adminController');
+const auth = require('../middlewares/auth');
+const adminOnly = require('../middlewares/adminOnly');
 
-// All admin routes require authentication and admin role
-router.use(protect);
-router.use(authorize('admin'));
+router.use(auth);
+router.use(adminOnly);
 
-router.get('/dashboard', adminController.getDashboardStats);
-router.get('/users', adminController.getAllUsers);
-router.get('/garages', adminController.getAllGaragesAdmin);
-router.put('/garages/:id/approve', adminController.approveGarage);
+router.get('/dashboard', getDashboardStats);
+router.get('/garages/pending', getPendingGarages);
+router.patch('/garages/:id/approve', approveGarage);
+router.get('/garages', getAllGarages);
 
 module.exports = router;

@@ -1,15 +1,20 @@
 const express = require('express');
 const router = express.Router();
-const userController = require('../controllers/userController');
-const { protect } = require('../middlewares/auth');
+
+// ✅ Import controller functions – names must match exports
+const {
+  register,
+  login,
+  getProfile
+} = require('../controllers/authController');
+
+const auth = require('../middlewares/auth');
 
 // Public routes
-router.post('/register', userController.register);
-router.post('/login', userController.login);
+router.post('/register', register);
+router.post('/login', login); // ← Line 10 – this will now work
 
-// Protected routes
-router.use(protect);
-router.get('/me', userController.getMe);
-router.put('/:id', userController.updateUser);
+// Protected route
+router.get('/me', auth, getProfile);
 
 module.exports = router;

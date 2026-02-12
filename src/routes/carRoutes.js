@@ -1,15 +1,26 @@
 const express = require('express');
 const router = express.Router();
-const carController = require('../controllers/carController');
-const { protect, authorize } = require('../middlewares/auth');
 
-// All routes require authentication
-router.use(protect);
+// ✅ Import auth middleware – make sure this path is correct
+const auth = require('../middlewares/auth');
 
-// Car owner routes
-router.post('/', authorize('car_owner'), carController.addCar);
-router.get('/my-cars', authorize('car_owner'), carController.getMyCars);
-router.put('/:id', authorize('car_owner'), carController.updateCar);
-router.delete('/:id', authorize('car_owner'), carController.deleteCar);
+// ✅ Import car controller functions
+const {
+  addCar,
+  getMyCars,
+  getCarById,
+  updateCar,
+  deleteCar
+} = require('../controllers/carController');
 
-module.exports = router;
+// ✅ All car routes require authentication
+router.use(auth); // This will now work because `auth` is a function
+
+// Routes
+router.post('/', addCar);
+router.get('/my-cars', getMyCars);
+router.get('/:id', getCarById);
+router.put('/:id', updateCar);
+router.delete('/:id', deleteCar);
+
+module.exports = router;v

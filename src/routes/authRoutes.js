@@ -1,11 +1,127 @@
-const express = require('express');
-const router = express.Router();
-const authController = require('../controllers/authController');
+const User = require('../models/User');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
-console.log("Auth routes loaded");
+// @desc    Register user
+// @route   POST /api/users/register
+// @access  Public
+exports.register = async (req, res) => {
+  try {
+    const { name, email, password, phone, role, garageProfile } = req.body;
 
-// Public routes
-router.post('/register', authController.register);
-router.post('/login', authController.login);
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ message: 'Email already registered' });
+    }
 
-module.exports = router;
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Prepare user data
+    const userData = {
+      name,
+      email,
+      password: hashedPassword,
+      phone,
+      role,
+      isActive: true,
+    };
+
+    // If garage owner, add garageProfile with pending status
+    if (role === 'garage_owner') {
+      if (!garageProfile) {
+        return res.status(400).json({ message: 'Garage profile is required' });
+      }
+      userData.garageProfile = {
+        licenseNumber: garageProfile.licenseNumber,
+        licenseDocument: garageProfile.licenseDocument,
+        garageName: garageProfile.garageName,
+        address: garageProfile.address,
+        services: garageProfile.services || [],
+        hourlyRate: garageProfile.hourlyRate || 0,
+        capacity: garageProfile.capacity || 1,
+        description: garageProfile.description || '',
+        paymentStatus: 'pending',
+        approvalStatus: 'pending',
+      };
+    }
+
+    // Create user
+    const user = new User(userData);
+    await user.save();
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { id: user._id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRE || '7d' }
+    );
+
+    // Return user data (without password)
+    const userResponse = user.toObject();
+    delete userResponse.password;
+
+    res.status(201).json({
+      message: 'Registration successful',
+      token,
+      user: userResponse,
+    });
+  } catch (error) {
+    console.error('Registration error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Login user
+// @route   POST /api/users/login
+// @access  Public
+exports.login = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    // Check if user exists
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(401).json({ message: 'Invalid email or password' });
+    }
+
+    // Check password
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ message: 'Invalid email or password' });
+    }
+
+    // Generate token
+    const token = jwt.sign(
+      { id: user._id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRE || '7d' }
+    );
+
+    const userResponse = user.toObject();
+    delete userResponse.password;
+
+    res.json({
+      message: 'Login successful',
+      token,
+      user: userResponse,
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Get current user profile
+// @route   GET /api/users/me
+// @access  Private
+exports.getProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select('-password');
+    res.json({ user });
+  } catch (error) {
+    console.error('Get profile error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};

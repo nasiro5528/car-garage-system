@@ -1,214 +1,121 @@
-const Garage = require('../models/Garage');
 const User = require('../models/User');
 
-// @desc    Register a garage (Garage Owner only)
-// @route   POST /api/garages/register
-// @access  Private (Garage Owner)
-exports.registerGarage = async (req, res) => {
-    try {
-        const user = req.user;
-        
-        // Check if user is garage owner
-        if (user.role !== 'garage_owner') {
-            return res.status(403).json({
-                success: false,
-                message: 'Only garage owners can register garages'
-            });
-        }
-        
-        // Required fields from document
-        const requiredFields = [
-            'name', 'address', 'city', 'licenseNumber',
-            'capacity', 'availableSlots', 'services'
-        ];
-        
-        const missingFields = requiredFields.filter(field => !req.body[field]);
-        
-        if (missingFields.length > 0) {
-            return res.status(400).json({
-                success: false,
-                message: `Missing required fields: ${missingFields.join(', ')}`
-            });
-        }
-        
-        // Create garage
-        const garageData = {
-            name: req.body.name,
-            address: req.body.address,
-            city: req.body.city,
-            licenseNumber: req.body.licenseNumber,
-            capacity: parseInt(req.body.capacity),
-            availableSlots: parseInt(req.body.availableSlots),
-            services: req.body.services,
-            phone: req.body.phone || '',
-            email: req.body.email || '',
-            description: req.body.description || '',
-            latitude: req.body.latitude || 0,
-            longitude: req.body.longitude || 0,
-            owner: user._id,
-            status: 'pending' // Needs admin approval
-        };
-        
-        // Check for license file (as per document)
-        if (req.body.licenseFile) {
-            garageData.licenseFile = req.body.licenseFile;
-        }
-        
-        const garage = await Garage.create(garageData);
-        
-        res.status(201).json({
-            success: true,
-            message: 'Garage registration submitted for approval',
-            garage
-        });
-        
-    } catch (error) {
-        console.error('Garage registration error:', error);
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
+exports.getMyGarage = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select('-password');
+    if (user.role !== 'garage_owner') {
+      return res.status(403).json({ success: false, message: 'Access denied' });
     }
+    const garageProfile = user.garageProfile || {};
+    if (garageProfile.paymentStatus !== 'paid') {
+      return res.status(402).json({
+        success: false,
+        message: 'Payment required',
+        paymentStatus: garageProfile.paymentStatus || 'pending',
+        requiresPayment: true
+      });
+    }
+    if (garageProfile.approvalStatus !== 'approved') {
+      return res.status(403).json({
+        success: false,
+        message: `Your garage is ${garageProfile.approvalStatus || 'pending'}. Please wait for admin approval.`,
+        approvalStatus: garageProfile.approvalStatus || 'pending',
+        requiresApproval: true
+      });
+    }
+    res.status(200).json({ success: true, garageProfile });
+  } catch (error) {
+    console.error('Get my garage error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
 };
 
-// @desc    Get all approved garages
-// @route   GET /api/garages
-// @access  Public
+exports.updateMyGarage = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (user.role !== 'garage_owner') {
+      return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+    const allowedUpdates = [
+      'garageName', 'address', 'services', 'hourlyRate',
+      'capacity', 'description', 'phone', 'email', 'licenseNumber'
+    ];
+    const updateData = {};
+    Object.keys(req.body).forEach(key => {
+      if (allowedUpdates.includes(key)) {
+        updateData[`garageProfile.${key}`] = req.body[key];
+      }
+    });
+    const updatedUser = await User.findByIdAndUpdate(
+      req.user.id,
+      { $set: updateData },
+      { new: true, runValidators: true }
+    ).select('garageProfile');
+    res.status(200).json({
+      success: true,
+      message: 'Garage profile updated successfully',
+      garageProfile: updatedUser.garageProfile
+    });
+  } catch (error) {
+    console.error('Update garage error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 exports.getAllGarages = async (req, res) => {
-    try {
-        const { city, service, page = 1, limit = 10 } = req.query;
-        
-        // Build filter
-        const filter = { 
-            status: 'approved',
-            isDeleted: false 
-        };
-        
-        if (city) filter.city = { $regex: city, $options: 'i' };
-        if (service) filter.services = { $in: [service] };
-        
-        // Execute query with pagination
-        const garages = await Garage.find(filter)
-            .limit(limit * 1)
-            .skip((page - 1) * limit)
-            .populate('owner', 'name email phone')
-            .sort({ createdAt: -1 });
-        
-        // Get total count
-        const total = await Garage.countDocuments(filter);
-        
-        res.status(200).json({
-            success: true,
-            count: garages.length,
-            total,
-            totalPages: Math.ceil(total / limit),
-            currentPage: page,
-            garages
-        });
-        
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
-    }
+  try {
+    const { city, service, page = 1, limit = 10 } = req.query;
+    const filter = {
+      role: 'garage_owner',
+      'garageProfile.approvalStatus': 'approved',
+      isDeleted: false
+    };
+    if (city) filter['garageProfile.address'] = { $regex: city, $options: 'i' };
+    if (service) filter['garageProfile.services'] = { $in: [service] };
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const users = await User.find(filter)
+      .select('name phone garageProfile')
+      .skip(skip)
+      .limit(parseInt(limit))
+      .sort({ createdAt: -1 });
+    const garages = users.map(user => ({
+      _id: user._id,
+      ownerName: user.name,
+      phone: user.phone,
+      ...user.garageProfile.toObject()
+    }));
+    const total = await User.countDocuments(filter);
+    res.status(200).json({
+      success: true,
+      count: garages.length,
+      total,
+      totalPages: Math.ceil(total / limit),
+      currentPage: parseInt(page),
+      garages
+    });
+  } catch (error) {
+    console.error('Get all garages error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
 };
 
-// @desc    Get single garage by ID
-// @route   GET /api/garages/:id
-// @access  Public
 exports.getGarageById = async (req, res) => {
-    try {
-        const garage = await Garage.findById(req.params.id)
-            .populate('owner', 'name email phone')
-            .populate('mechanics', 'name specialty rating');
-        
-        if (!garage) {
-            return res.status(404).json({
-                success: false,
-                message: 'Garage not found'
-            });
-        }
-        
-        res.status(200).json({
-            success: true,
-            garage
-        });
-        
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
+  try {
+    const user = await User.findById(req.params.id).select('name phone garageProfile');
+    if (!user || user.role !== 'garage_owner' || user.garageProfile?.approvalStatus !== 'approved') {
+      return res.status(404).json({ success: false, message: 'Garage not found or not approved yet' });
     }
-};
-
-// @desc    Get garages by owner
-// @route   GET /api/garages/owner/my-garages
-// @access  Private (Garage Owner)
-exports.getMyGarages = async (req, res) => {
-    try {
-        const garages = await Garage.find({ 
-            owner: req.user._id,
-            isDeleted: false 
-        });
-        
-        res.status(200).json({
-            success: true,
-            count: garages.length,
-            garages
-        });
-        
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
-    }
-};
-
-// @desc    Update garage
-// @route   PUT /api/garages/:id
-// @access  Private (Garage Owner or Admin)
-exports.updateGarage = async (req, res) => {
-    try {
-        let garage = await Garage.findById(req.params.id);
-        
-        if (!garage) {
-            return res.status(404).json({
-                success: false,
-                message: 'Garage not found'
-            });
-        }
-        
-        // Check authorization
-        if (req.user.role !== 'admin' && garage.owner.toString() !== req.user._id.toString()) {
-            return res.status(403).json({
-                success: false,
-                message: 'Not authorized to update this garage'
-            });
-        }
-        
-        // Update garage
-        garage = await Garage.findByIdAndUpdate(
-            req.params.id,
-            req.body,
-            {
-                new: true,
-                runValidators: true
-            }
-        );
-        
-        res.status(200).json({
-            success: true,
-            message: 'Garage updated successfully',
-            garage
-        });
-        
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
-    }
+    res.status(200).json({
+      success: true,
+      garage: {
+        _id: user._id,
+        ownerName: user.name,
+        phone: user.phone,
+        ...user.garageProfile.toObject()
+      }
+    });
+  } catch (error) {
+    console.error('Get garage by ID error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
 };
